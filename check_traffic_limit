@@ -1,0 +1,185 @@
+#!/usr/bin/perl -w
+
+# ---
+=head1 NAME
+
+check_traffic_limit - Icinga2 / Nagios plugin for checking daily traffic limit
+
+=head1 SYNOPSIS
+
+ check_traffic_limit -i interface \
+              [-w warning_threshold] [-c critical_threshold] \
+              [-p period d|m]
+ check_traffic_limit [-h]
+               
+=head1 OPTIONS
+               
+=over 4
+
+=item -i|--iface=
+
+Select one specific interface. Default is eth0.
+               
+=item -w|--warning=threshold
+
+threshold in kilobyte. All values must be integer and > 0. Default is unlimitted.
+               
+=item -c|--critical=threshold
+               
+see --warning for explanation of threshold format
+
+=item -p|--period=[d|m]
+               
+analyse traffic for current day or current month. Default is d for day.
+
+=item -h|--help
+               
+print help message and exit
+               
+=cut
+               
+               
+use strict;
+use warnings;
+use Nagios::Plugin;
+use Getopt::Long qw(:config no_ignore_case bundling);
+use Pod::Usage;
+
+$ENV{'LC_ALL'}='C';
+
+my $vnstatbin = '/usr/bin/vnstat';
+my $vnstat_output_kb = 'KB|KiB';
+my $vnstat_output_mb = 'MB|MiB';
+my $vnstat_output_gb = 'GB|GiB';
+my $awkbin = '/usr/bin/awk';
+my $grepbin = '/bin/egrep';
+
+my $np = Nagios::Plugin->new( shortname => "TRAFFICLIMIT" );
+my $line = '';
+my $iface = 'eth0';
+my $warn_threshold = '0:';
+my $crit_threshold = '0:';
+my $period = "d";
+my $version = 'v0.4/2017-10-02/schoppa';
+my $printversion = 0;
+my $result = UNKNOWN;
+my $help = 0;
+my $vnstatquery = '';
+
+use Time::localtime;
+my ($mday, $mon) = (localtime->mday,localtime->mon);
+my $local_day = sprintf("%02d", $mday);
+my $local_month = sprintf("%02d", $mon +1);
+my @months = qw(Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec);
+my $local_month_abbreviated  = $months[$local_month -1];
+
+my $day = "($local_month\/$local_day\/|$local_day\.$local_month\.)";
+my $month = "$local_month_abbreviated";
+
+# -- GetOpt
+GetOptions(
+   "i|iface=s"          => \$iface,
+   "p|period=s"         => \$period,
+   "w|warning=s"        => \$warn_threshold,
+   "c|critical=s"       => \$crit_threshold,
+    "h|help"            => \$help,
+) or pod2usage({ -exitval => UNKNOWN,
+                  -msg     => "*** unknown argument found ***" });
+
+pod2usage(-verbose => 2,
+          -exitval => UNKNOWN,
+         ) if ( $help );
+                   
+pod2usage(-msg     => "*** no interface specified ***",
+          -exitval => UNKNOWN,
+        ) if ( "$iface" eq "" );
+
+pod2usage(-msg     => "*** wrong period specified ***",
+          -exitval => UNKNOWN,
+        ) if ( "$period" ne "d" && $period ne "m");
+                      
+
+if ($period eq "d" ) {
+  $vnstatquery = $day;
+} else {
+  $vnstatquery = $month;
+}
+
+# -- thresholds
+$np->set_thresholds( 
+   warning  => $warn_threshold,
+   critical => $crit_threshold);
+
+# -- main
+open ( OUT, "$vnstatbin -i $iface \-$period | $grepbin '$vnstatquery' | sed -e \"s/ '//g\" | $awkbin '{print \$2,\$3,\$5,\$6,\$8,\$9}'|")
+   or $np->nagios_die( "can't start vnstat or awk" );
+
+while (<OUT>) {
+   chomp $_;
+   $_ =~ s/($vnstat_output_kb)/0/g;
+   $_ =~ s/($vnstat_output_mb)/1/g;
+   $_ =~ s/($vnstat_output_gb)/1024/g;
+   $line = $_; 
+}
+close (OUT);
+
+my ($rx, $rxu, $tx, $txu, $total, $totalu) = (split /\ /, $line)[0,1,2,3,4,5];
+
+$rx = $rx * $rxu;
+$tx = $tx * $txu;
+$total = $total * $totalu;
+
+$np->add_perfdata( label => "TOTAL", value => $total,
+                   uom => "", threshold => $np->threshold() );
+
+$np->add_perfdata( label => "IN", value => $rx,
+                   uom => "", threshold => $np->threshold() );
+
+$np->add_perfdata( label => "OUT", value => $tx,
+                   uom => "", threshold => $np->threshold() );
+
+$result = $np->check_threshold(  $total );
+
+$np->nagios_exit( $result, "$iface: $total MB");
+
+
+=back
+
+=head1 AUTHOR
+
+<marcus.schopen@uni-bielefeld.de>
+University of Bielefeld
+
+=head1 KNOWN ISSUES
+
+may be
+
+=head1 BUGS
+
+may be
+
+=head1 LICENSE
+
+This program is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License (and no
+later version).
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
+
+=head1 HISTORY
+
+v0.4/2017-10-02 encoding bug fix in help output, LC_ALL fix
+
+V0.3/2011-02-09 minor fixes, add nagios grapher template
+
+V0.2/2011-02-06 add daily and monthly limit, some fixes for different vnstat versions
+
+V0.1/2011-02-05 initial version
