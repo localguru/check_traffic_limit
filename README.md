@@ -1,6 +1,6 @@
 # check_traffic_limit
 
-check_traffic_limit is a Nagios/Icinga2 plugin based on vnstat traffic accounting. It checks traffic on any interface and sends a warning when defined daily or monthly limits are reached.
+check_traffic_limit is a Nagios/Icinga2 plugin based on [vnstat](https://github.com/vergoh/vnstat) traffic accounting. It checks traffic on any interface and sends a warning when defined daily or monthly limits are reached.
 The plugin comes with a pnp4Nagios grapher templates.
 
 # Installation
