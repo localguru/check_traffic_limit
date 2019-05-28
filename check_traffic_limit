@@ -60,20 +60,20 @@ my $iface = 'eth0';
 my $warn_threshold = '0:';
 my $crit_threshold = '0:';
 my $period = "d";
-my $version = 'v0.4/2017-10-02/schoppa';
+my $version = 'v0.5/2019-05-28/schoppa';
 my $printversion = 0;
 my $result = UNKNOWN;
 my $help = 0;
 my $vnstatquery = '';
 
 use Time::localtime;
-my ($mday, $mon) = (localtime->mday,localtime->mon);
+my ($mday, $mon, $year) = (localtime->mday,localtime->mon,1900+localtime->year);
 my $local_day = sprintf("%02d", $mday);
 my $local_month = sprintf("%02d", $mon +1);
 my @months = qw(Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec);
 my $local_month_abbreviated  = $months[$local_month -1];
 
-my $day = "($local_month\/$local_day\/|$local_day\.$local_month\.)";
+my $day = "($local_month\/$local_day\/|$local_day\.$local_month\.|$year-$local_month-$local_day)";
 my $month = "$local_month_abbreviated";
 
 # -- GetOpt
@@ -175,6 +175,8 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
 
 =head1 HISTORY
+
+v0.5/2019-05-28 support ISO data format yyyy-mm-dd
 
 v0.4/2017-10-02 encoding bug fix in help output, LC_ALL fix
 
